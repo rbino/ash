@@ -170,15 +170,6 @@ defmodule Ash.Actions.Read do
     opts = Keyword.delete(opts, :page)
     query = Ash.Query.page(query, page_opts)
 
-    query =
-      if query.page && query.page[:limit] &&
-           (query.page[:before] || query.page[:after] ||
-              (action.pagination.keyset? && !query.page[:offset])) do
-        load_and_select_sort(query)
-      else
-        query
-      end
-
     pkey = Ash.Resource.Info.primary_key(query.resource)
 
     missing_pkeys? =
