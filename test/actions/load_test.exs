@@ -1221,7 +1221,7 @@ defmodule Ash.Test.Actions.LoadTest do
       #        } = Ash.page!(post1.categories, :next)
     end
 
-    test "works when nested" do
+    test "works when nested with offset" do
       author1 =
         Author
         |> Ash.Changeset.for_create(:create, %{name: "a"})
@@ -1278,8 +1278,74 @@ defmodule Ash.Test.Actions.LoadTest do
       assert %Ash.Page.Offset{
                results: [
                  %{
-                   title: "author1 post1",
-                   categories: %Ash.Page.Offset{results: %{name: "cateogory1"}}
+                   title: "author1 post0",
+                   categories: %Ash.Page.Offset{results: %{name: "category1"}}
+                 }
+               ]
+             } = author1.posts
+    end
+
+    test "works when nested with keyset" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{name: "b"})
+        |> Ash.create!()
+
+      categories =
+        for i <- 0..9 do
+          Category
+          |> Ash.Changeset.for_create(:create, %{name: "category#{i}"})
+          |> Ash.create!()
+        end
+
+      categories_0_to_6 = Enum.take(categories, 6)
+      categories_5_to_9 = Enum.slice(categories, 5..9)
+
+      for i <- 0..5 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.Changeset.manage_relationship(:categories, categories_0_to_6,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.Changeset.manage_relationship(:categories, categories_5_to_9,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+      end
+
+      paginated_categories =
+        Category
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:name)
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.load(categories: paginated_categories)
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:title)
+
+      assert [author1, _author2] =
+               Author
+               |> Ash.Query.sort(:name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Keyset{
+               results: [
+                 %{
+                   title: "author1 post0",
+                   categories: %Ash.Page.Keyset{results: %{name: "category1"}}
                  }
                ]
              } = author1.posts

@@ -400,13 +400,22 @@ defmodule Ash.DataLayer.Ets do
         {:error, error}
 
       {:ok, root_data} ->
-        parent_pkey =
+        records =
           case root_data do
+            %page{results: results} when page in [Ash.Page.Offset, Ash.Page.Keyset] ->
+              results
+
+            records ->
+              records
+          end
+
+        parent_pkey =
+          case records do
             [%resource{} | _] -> Ash.Resource.Info.primary_key(resource)
             [] -> []
           end
 
-        root_data
+        records
         |> Enum.reduce_while({:ok, []}, fn parent, {:ok, results} ->
           new_filter =
             if Map.get(relationship, :no_attributes?) do
@@ -465,13 +474,22 @@ defmodule Ash.DataLayer.Ets do
         {:error, error}
 
       {:ok, root_data} ->
-        parent_pkey =
+        records =
           case root_data do
+            %page{results: results} when page in [Ash.Page.Offset, Ash.Page.Keyset] ->
+              results
+
+            records ->
+              records
+          end
+
+        parent_pkey =
+          case records do
             [%resource{} | _] -> Ash.Resource.Info.primary_key(resource)
             [] -> []
           end
 
-        root_data
+        records
         |> Enum.reduce_while({:ok, []}, fn parent, {:ok, results} ->
           through_query
           |> Ash.Query.filter(
