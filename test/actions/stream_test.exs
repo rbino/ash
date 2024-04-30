@@ -52,7 +52,7 @@ defmodule Ash.Test.Actions.StreamTest do
 
     count =
       Post
-      |> Ash.stream!(batch_size: 5, stream_with: :offset)
+      |> Ash.stream!(batch_size: 4, stream_with: :offset)
       |> Enum.count()
 
     assert count == 10
