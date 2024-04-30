@@ -135,12 +135,12 @@ defmodule Ash.Actions.Read.Stream do
         offset ->
           query =
             query
-            |> Ash.Query.limit(limit)
+            |> Ash.Query.limit(limit + 1)
             |> Ash.Query.offset(offset)
 
           results = Ash.read!(query, Keyword.put(opts, :domain, domain))
 
-          if Enum.count(results) == limit do
+          if Enum.count(results) <= limit do
             {results, false}
           else
             {results, offset + limit}
