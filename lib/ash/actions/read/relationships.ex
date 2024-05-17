@@ -560,13 +560,17 @@ defmodule Ash.Actions.Read.Relationships do
        ) do
     %Ash.Page.Unpaged{
       related_records: related_records,
-      count: count,
       opts: opts
     } = unpaged
 
     to_page_fun =
       if relationship.cardinality == :many do
         fn value, record ->
+          count_key =
+            Ash.Actions.Read.paginated_relationship_count_aggregate_name(relationship.name)
+
+          count = Map.get(record.aggregates, count_key)
+
           # We scope the lateral join to the specific record, so that next runs of rerun
           # just fetch the entries related to this record
           related_query =
@@ -587,7 +591,15 @@ defmodule Ash.Actions.Read.Relationships do
         fn value, _record -> value end
       end
 
-    attach_lateral_join_related_records(records, relationship, related_records, to_page_fun)
+    record_cleanup_fun = &Function.identity/1
+
+    attach_lateral_join_related_records(
+      records,
+      relationship,
+      related_records,
+      to_page_fun,
+      record_cleanup_fun
+    )
   end
 
   defp do_attach_related_records(
@@ -817,7 +829,8 @@ defmodule Ash.Actions.Read.Relationships do
          [%resource{} | _] = records,
          relationship,
          related_records,
-         maybe_to_page_fun \\ fn related_value, _record -> related_value end
+         maybe_to_page_fun \\ fn related_value, _record -> related_value end,
+         record_cleanup_fun \\ &Function.identity/1
        ) do
     source_attribute =
       Ash.Resource.Info.attribute(relationship.source, relationship.source_attribute)
@@ -844,10 +857,14 @@ defmodule Ash.Actions.Read.Relationships do
       Enum.map(records, fn record ->
         with :error <- Map.fetch(values, Map.take(record, primary_key)),
              :error <- Map.fetch(values, Map.get(record, relationship.source_attribute)) do
-          Map.put(record, relationship.name, maybe_to_page_fun.(default, record))
+          record
+          |> Map.put(relationship.name, maybe_to_page_fun.(default, record))
+          |> record_cleanup_fun.()
         else
           {:ok, value} ->
-            Map.put(record, relationship.name, maybe_to_page_fun.(value, record))
+            record
+            |> Map.put(relationship.name, maybe_to_page_fun.(value, record))
+            |> record_cleanup_fun.()
         end
       end)
     else
@@ -875,7 +892,9 @@ defmodule Ash.Actions.Read.Relationships do
             end
           ])
 
-        Map.put(record, relationship.name, maybe_to_page_fun.(related, record))
+        record
+        |> Map.put(relationship.name, maybe_to_page_fun.(related, record))
+        |> record_cleanup_fun.()
       end)
     end
   end
